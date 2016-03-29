@@ -1,0 +1,108 @@
+<?php
+/**
+ * AWF File Diff
+ *
+ * Copyright (c) 2016 Kay Bin <kow@kaybin.com>
+ *
+ * All rights reserved.
+ *
+ * @package Diff
+ * @author Kow Kay Bin
+ * @copyright (c) 2016 Kay Bin
+ * @license GNU GENERAL PUBLIC LICENSE
+ * @version 1.0
+ * @link http://kaybin.com/
+ */
+
+class AWFFileDiff
+{
+
+	private $mapContentOld=[];
+	private $mapContentNew=[];
+	private $mapDifferences=[];
+
+	public function __construct($fileOld,$fileNew)
+	{
+		foreach (explode("\n",file_get_contents($fileOld)) as $eachItem){
+			$this->mapContentOld[] = [0=>rtrim($eachItem,"\n\r"),1=>null];
+		}
+		foreach (explode("\n",file_get_contents($fileNew)) as $eachItem){
+			$this->mapContentNew[] = [0=>rtrim($eachItem,"\n\r"),1=>null];
+		}
+		if ((count($this->mapContentOld) == 1) && $this->mapContentOld[0][0] == '') $this->mapContentOld=[];
+		if ((count($this->mapContentNew) == 1) && $this->mapContentNew[0][0] == '') $this->mapContentNew=[];
+		$this->mapOldNewLines();
+		//ddd($this->mapContentNew);
+		$this->compileDifferences();
+	}
+	private function mapOldNewLines(){
+		// Matches old lines using the scane
+		// Upon matches, reverse map new lines as well
+		foreach ($this->mapContentOld as $idxOld => $eachOld){
+			$rtVal = $this->scanMatchingLines($this->mapContentOld[$idxOld][0],$idxOld);
+			if ($rtVal !== null && $this->mapContentNew[$rtVal][1] === null){
+				$this->mapContentOld[$idxOld][1] = $rtVal;
+				$this->mapContentNew[$rtVal][1] = $idxOld;
+			}
+		}
+	}
+	private function scanMatchingLines($content,$offset,$depth=null){
+		// Perform line matching scan using the nearest matching method. Back and forth
+		$l = count($this->mapContentNew)-1;
+		if ($depth === null) {$depth = $l;}
+		$breakUpper=$breakLower=false;
+		for ($i = 0;$i<=$depth;$i++){
+
+			// This section perhaps needed two iteration towards each direction.
+			// Due to bounding issue, not knowing when to stop seeking
+			if (!$breakUpper && $offset+$i<=$l)
+				{
+					//if ($content == 'Cocktail' || 1) print "\n$offset+$i<=$l $content";
+				 	if ($this->mapContentNew[$offset+$i][0] == $content) {
+				 		//print "#A".($offset+$i);
+				 		return $offset+$i;
+				 	}
+				}
+			else {$breakUpper=true;}
+			if ($breakLower == false && $offset-$i>=0)
+				{
+					//if ($content == 'Cocktail' || 1) print "\n$offset-$i<=$l $content";
+					if ($offset-$i<=$l && $this->mapContentNew[$offset-$i][0] == $content) {
+						//print "#B".($offset-$i);
+						return $offset-$i;
+					}
+				}
+			else {$breakLower=true;}
+			if ($breakUpper && $breakLower) break;
+		}
+		//print "#C";
+		return null;
+	}
+	private function compileDifferences(){
+		$idxOld = 0;
+		foreach ($this->mapContentNew as $idxNew => $eachNewLine){
+			if ($this->mapContentNew[$idxNew][1] === NULL){ // New lines
+				$this->mapDifferences[] = [0=>$eachNewLine[0],1=>'+ '];
+			}else{// Has lines
+				for ($idxOld = $idxOld;$idxOld<$this->mapContentNew[$idxNew][1];$idxOld++){
+					$this->mapDifferences[] = [0=>$this->mapContentOld[$idxOld][0],1=>'- '/*.$this->mapContentOld[$idxOld][1]*/];
+				}
+				$idxOld=$this->mapContentNew[$idxNew][1]+1;
+				$this->mapDifferences[] = [0=>$eachNewLine[0],1=>'= '/*.$this->mapContentNew[$idxNew][1]*/];
+				//$this->mapDifferences[] = [0=>$this->mapContentOld[$idxOld][0],1=>'='.$this->mapContentOld[$idxOld][1]];
+
+			}
+		}
+		// Finish up old lines
+		for ($idxOld = $idxOld;$idxOld<count($this->mapContentOld);$idxOld++){
+			$this->mapDifferences[] = [0=>$this->mapContentOld[$idxOld][0],1=>'-.'.$this->mapContentOld[$idxOld][1]];
+		}
+	}
+
+	public function hello()
+	{
+		foreach ($this->mapDifferences as $eachItem){
+			print $eachItem[1].$eachItem[0]."\n";
+		}
+	}
+}
